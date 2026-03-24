@@ -1,0 +1,12 @@
+Control Description: User Access Management
+
+Purpose:
+To ensure that only authorized users have access to financial systems.
+
+Process:
+- New employees receive access after manager approval via email.
+- Access is reviewed annually.
+- When someone leaves, IT removes their account within 30 days.
+
+Responsible: IT Department
+Last updated: unknown

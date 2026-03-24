@@ -1,0 +1,12 @@
+AUDIT PRIORITY REPORT
+==================================================
+
+[HIGH] example_document.txt
+  → The 30-day window for revoking terminated employee access to financial systems creates significant unauthorized access and fraud risk, compounded by the absence of segregation of duties controls, lack of a reliable audit trail, and overall insufficient control design that fails to meet basic standards for safeguarding financial systems.
+
+[HIGH] Key.txt
+  → An exposed, plain-text API key constitutes a critical security incident with immediate risks of unauthorized access, financial loss, data breach, and compliance violations, requiring instant revocation and incident response.
+
+[HIGH] Output test.docx
+  → The audit assessment of user access management controls over financial systems identifies critical deficiencies (e.g., 30-day termination window, missing privileged access management, absent segregation of duties) while the report itself lacks essential elements for regulatory defensibility — no documented methodology, evidence references, scope definition, or management responses — creating significant exposure if subjected to external regulatory examination such as SOX compliance review.
+

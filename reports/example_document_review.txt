@@ -1,0 +1,70 @@
+Review of: example_document.txt
+==================================================
+
+# Internal Audit Assessment: User Access Management Control
+
+---
+
+## 1. Summary
+
+This document describes the organization's control for managing user access to financial systems. It outlines the processes for granting access to new employees, conducting periodic access reviews, and revoking access upon employee departure. The document is notably brief and lacks the detail, formality, and rigor expected for a control governing access to financial systems.
+
+---
+
+## 2. Key Findings
+
+- **Basic lifecycle coverage:** The control addresses the three fundamental phases of user access management — provisioning (onboarding), periodic review, and de-provisioning (offboarding).
+- **Manager approval requirement:** There is a defined approval step (manager approval) before access is granted, establishing a basic authorization control.
+- **Annual review cadence:** A periodic access review is referenced, indicating awareness of the need for ongoing access validation.
+- **Responsible party identified:** The IT Department is designated as the responsible party for execution.
+
+---
+
+## 3. Gaps & Missing Information
+
+- **"Last updated: unknown"** — This is a critical documentation failure. There is no evidence of version control, document ownership, or review history.
+- **No defined scope of financial systems:** The document does not specify which systems are covered (e.g., ERP, general ledger, accounts payable, banking platforms).
+- **No role-based access control (RBAC) framework:** There is no mention of how access levels are determined, who defines appropriate roles, or whether the principle of least privilege is applied.
+- **Informal approval mechanism:** Manager approval "via email" lacks a formal, auditable workflow. There is no standardized access request form, ticketing system, or documented approval chain.
+- **No segregation of duties (SoD) considerations:** The document does not address how conflicting access rights are identified or prevented.
+- **No process for transfers or role changes:** Only new hires and departures are addressed; internal moves, promotions, and temporary assignments are not covered.
+- **No detail on annual review process:** There is no description of who conducts the review, what evidence is retained, how exceptions are handled, or what the escalation process is.
+- **No defined SLAs for provisioning:** There is no target timeframe for granting access to new employees.
+- **No mention of privileged/admin access:** Elevated access accounts require heightened controls, which are entirely absent.
+- **No reference to regulatory or policy framework:** The control is not linked to any broader IT security policy, internal control framework (e.g., COSO, COBIT), or regulatory requirement (e.g., SOX, GDPR).
+
+---
+
+## 4. Risks Identified
+
+- **Unauthorized access risk (HIGH):** The 30-day window for removing terminated employee access is excessively long. A departed employee could access, modify, or exfiltrate sensitive financial data for up to a month after separation. Industry best practice is same-day or immediate revocation.
+- **Fraud and financial misstatement risk (HIGH):** Without segregation of duties controls, a single user could potentially authorize and execute conflicting financial transactions.
+- **Audit trail deficiency (MEDIUM-HIGH):** Email-based approvals are easily lost, difficult to search, and may not provide a reliable audit trail for SOX compliance or external audit testing.
+- **Access creep / excessive permissions (MEDIUM-HIGH):** Without controls for role changes and without a robust annual review process, users may accumulate unnecessary access rights over time.
+- **Compliance and regulatory risk (MEDIUM):** The lack of linkage to regulatory requirements and the absence of documentation standards could result in audit findings or regulatory penalties.
+- **Accountability risk (MEDIUM):** While IT is listed as responsible, there is no distinction between the control owner, control operator, and oversight function (e.g., management, internal audit).
+
+---
+
+## 5. Recommendations
+
+### Immediate / Critical Priority
+- **Reduce de-provisioning timeframe to same-day (or within 24 hours) upon employee termination.** Coordinate with HR to establish a real-time notification process to IT upon separation.
+- **Implement a formal, system-based access request and approval workflow** (e.g., through an ITSM tool like ServiceNow) to replace email-based approvals and ensure a complete audit trail.
+- **Update the "Last Updated" field immediately** and implement version control with a defined document owner and annual review cycle.
+
+### Short-Term (Within 90 Days)
+- **Define the scope** by listing all in-scope financial systems and classifying them by risk/criticality.
+- **Develop and document a role-based access control matrix** aligned with job functions, incorporating the principle of least privilege.
+- **Incorporate segregation of duties checks** into the provisioning and review processes, ideally supported by automated SoD conflict detection.
+- **Expand the control to cover internal transfers and role changes**, requiring access re-certification upon any change in job function.
+
+### Medium-Term (Within 6 Months)
+- **Formalize the annual access review** with a documented procedure, defined responsibilities, evidence retention requirements, and remediation timelines for exceptions.
+- **Establish enhanced controls for privileged accounts**, including separate approval requirements, more frequent reviews (e.g., quarterly), and activity monitoring.
+- **Align the control documentation** with an established framework (e.g., COSO, COBIT, ISO 27001) and map it to applicable regulatory requirements.
+- **Define KPIs and reporting metrics** (e.g., average time to provision/de-provision, percentage of reviews completed on time, number of SoD conflicts identified and resolved).
+
+---
+
+**Overall Assessment:** This control, as currently documented, is **insufficient** to adequately mitigate access-related risks to financial systems. The 30-day de-provisioning window alone represents a significant control deficiency. Substantial redesign and formalization are required to bring this control to an acceptable standard for a financial system environment.
