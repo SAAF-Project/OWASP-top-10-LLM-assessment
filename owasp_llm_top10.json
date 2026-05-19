@@ -1,0 +1,118 @@
+{
+  "version": "2025",
+  "edition": "OWASP Top 10 for LLM Applications 2025",
+  "last_updated": "2026-05-19T00:00:00Z",
+  "source_url": "https://genai.owasp.org/llm-top-10/",
+  "categories": [
+    {
+      "id": "LLM01",
+      "name": "Prompt Injection",
+      "description": "Malicious inputs manipulate the LLM to override instructions or exfiltrate data via direct or indirect injection.",
+      "indicators": [
+        "unsanitised user input concatenated into prompts",
+        "no prompt armoring or delimiters around user-supplied content",
+        "agent-to-agent message passing without input validation",
+        "system prompt instructions that can be overridden by user content"
+      ]
+    },
+    {
+      "id": "LLM02",
+      "name": "Sensitive Information Disclosure",
+      "description": "The model reveals PII, credentials, API keys, or confidential system details in its outputs.",
+      "indicators": [
+        "user data or file contents sent to external API without redaction",
+        "credentials or secrets embedded in prompts",
+        "LLM outputs returned to users without filtering",
+        "logging of prompt or response contents containing sensitive data"
+      ]
+    },
+    {
+      "id": "LLM03",
+      "name": "Supply Chain",
+      "description": "Vulnerabilities in third-party models, datasets, plugins, or packages the agent depends on.",
+      "indicators": [
+        "unpinned or unverified third-party dependencies",
+        "use of pre-trained models or embeddings from unverified sources",
+        "plugins or tool integrations loaded dynamically without integrity checks",
+        "no lockfile or hash verification for dependencies"
+      ]
+    },
+    {
+      "id": "LLM04",
+      "name": "Data and Model Poisoning",
+      "description": "Corrupted training data or fine-tuning inputs alter model behaviour or introduce backdoors.",
+      "indicators": [
+        "user-controlled input used to update or fine-tune models",
+        "RAG or knowledge base documents accepted from untrusted sources without validation",
+        "no integrity verification on training datasets or model weights",
+        "dynamic prompt templates that can be altered by external data"
+      ]
+    },
+    {
+      "id": "LLM05",
+      "name": "Improper Output Handling",
+      "description": "LLM outputs passed downstream without sanitisation, enabling XSS, SSRF, code injection, or privilege escalation.",
+      "indicators": [
+        "LLM output rendered as HTML or executed as code without sanitisation",
+        "LLM-generated URLs or file paths used in system calls",
+        "JSON or structured output from the LLM parsed without schema validation",
+        "LLM output written to files without path validation"
+      ]
+    },
+    {
+      "id": "LLM06",
+      "name": "Excessive Agency",
+      "description": "The agent is granted more permissions, tools, or autonomy than the task strictly requires.",
+      "indicators": [
+        "agent has write, delete, or execute permissions beyond read-only",
+        "tool use or function calling with broad scope (e.g. shell execution, database writes)",
+        "no human-in-the-loop confirmation for irreversible actions",
+        "agent can invoke other agents or external services without approval"
+      ]
+    },
+    {
+      "id": "LLM07",
+      "name": "System Prompt Leakage",
+      "description": "System prompt instructions or secrets can be extracted by adversarial users.",
+      "indicators": [
+        "system prompt contains API keys, credentials, or sensitive business logic",
+        "no guardrails preventing the model from repeating system prompt contents",
+        "system prompt accessible or visible in client-side code",
+        "error messages that expose prompt fragments"
+      ]
+    },
+    {
+      "id": "LLM08",
+      "name": "Vector and Embedding Weaknesses",
+      "description": "RAG pipelines or embedding stores susceptible to poisoned documents or retrieval manipulation.",
+      "indicators": [
+        "documents ingested into vector store without content validation",
+        "retrieved chunks injected into prompts without sanitisation",
+        "no access controls on vector database queries",
+        "embedding model loaded from unverified source"
+      ]
+    },
+    {
+      "id": "LLM09",
+      "name": "Misinformation",
+      "description": "The model generates plausible but false content, leading to incorrect decisions or trust erosion.",
+      "indicators": [
+        "no grounding, citations, or retrieval to back up factual claims",
+        "outputs presented as authoritative without disclaimer",
+        "no cross-verification or confidence scoring on generated facts",
+        "agent makes consequential decisions based solely on LLM output"
+      ]
+    },
+    {
+      "id": "LLM10",
+      "name": "Unbounded Consumption",
+      "description": "No rate limits or resource controls, enabling DoS, runaway API costs, or resource exhaustion.",
+      "indicators": [
+        "no input size or token limit before calling the API",
+        "no rate limiting or per-user quotas on LLM calls",
+        "recursive or looping agent patterns without iteration caps",
+        "no timeout on API calls or downstream tool invocations"
+      ]
+    }
+  ]
+}

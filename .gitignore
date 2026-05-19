@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pyo
+audit_log.jsonl
+SAAF-Project/
+reports/
+*.egg-info/
+.env
