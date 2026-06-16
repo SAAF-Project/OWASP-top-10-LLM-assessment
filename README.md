@@ -6,6 +6,8 @@ Agent that assesses other agents for compliance with the OWASP Top 10 for LLM Ap
 
 ```
 .
+├── assessment-methodology.md  # PASS/WARN/FAIL criteria for all 10 controls
+│
 ├── agent-reviewer/      # Standalone CLI + Flask web portal
 │   ├── review_agent.py  # CLI: single file, multi-file, or folder review
 │   ├── app.py           # Flask portal with drag-and-drop upload
@@ -71,6 +73,15 @@ python cli.py agent.py --dry-run                 # preview without API calls
 ```
 
 See [llm-owasp/README.md](llm-owasp/README.md) for full options and [llm-owasp/plan.md](llm-owasp/plan.md) for architecture details.
+
+## Assessment methodology
+
+See [assessment-methodology.md](assessment-methodology.md) for the full criteria used to determine PASS / WARN / FAIL / N/A verdicts per control, including:
+
+- Verdict definitions and escalation rules
+- Evidence standards (file path + line number required)
+- Per-control criteria tables with 4–5 numbered checkpoints each
+- Overall agent risk aggregation (Critical / High / Medium / Low)
 
 ## What it checks
 
