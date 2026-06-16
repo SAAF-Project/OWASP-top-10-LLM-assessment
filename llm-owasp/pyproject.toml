@@ -1,0 +1,15 @@
+[project]
+name = "owasp-llm-audit"
+version = "0.1.0"
+description = "Audit AI agents against the OWASP LLM Top 10 (2025)"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.40.0",
+]
+
+[project.scripts]
+owasp-llm-audit = "owasp_llm_audit.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
