@@ -8,7 +8,7 @@
 | **Use-case type** | Workflow (orchestrated sequence of agents and skills with human checkpoints) |
 | **Author** | Evan de Rvecht |
 | **Date** | 2026-03-24 |
-| **Status** | Initial Setup |
+| **Status** | Active Development |
 | **OWASP controls covered** | LLM01–LLM10 (full Top 10 for LLM Applications 2025) |
 
 ---
@@ -106,8 +106,8 @@ Existing code already implements the core pipeline. The mapping to SAAF componen
 | S2: control-loader | `load_controls()` | `owasp_llm_audit/controls.py` |
 | S3: control-assessor | `Auditor` class | `owasp_llm_audit/auditor.py` |
 | S4: report-formatter | `format_report()` | `owasp_llm_audit/report.py` |
-| A1: owasp-llm-auditor | CLI + Claude Code entry points | `owasp_llm_audit/cli.py`, `owasp_llm_audit/claude_code.py` |
-| W1: full-audit-workflow | `main()` in CLI | `owasp_llm_audit/cli.py`, `owasp_llm_audit/__main__.py` |
+| A1: owasp-llm-auditor | CLI + Claude Code entry points | `cli.py`, `claude_code.py` |
+| W1: full-audit-workflow | `main()` in CLI | `cli.py`, `__main__.py` |
 
 ---
 

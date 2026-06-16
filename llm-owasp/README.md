@@ -12,7 +12,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 python cli.py path/to/agent.py
 
 # Scan a directory, filtered by filename glob
-python cli.py plans/hackathon-2 --filter "frank-van-dissel-uc*.md"
+python cli.py ../plans/hackathon-2 --filter "*.md"
 
 # Multiple targets, custom output, strict mode (WARN also fails)
 python cli.py src/ config/ --output reports/audit.md --strict
