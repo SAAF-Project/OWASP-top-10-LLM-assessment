@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Portal</title>
+  <style>body{font-family:Arial,sans-serif;margin:2rem;}button{padding:0.5rem 1rem;}</style>
+</head>
+<body>
+  <h1>Agent Review Portal</h1>
+  <p>Enter agent source code:</p>
+  <form method="post" action="/review">
+    <textarea name="document_text" rows="8" cols="80" required>Sample agent code goes here. (.py, .js, .ts, .json, .yaml, .yml, .txt, .md)</textarea><br><br>
+    <button type="submit">Run Review</button>
+  </form>
+
+  {% if result %}
+    <h2>Review Result</h2>
+    <pre>{{ result }}</pre>
+  {% endif %}
+
+</body>
+</html>
