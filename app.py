@@ -9,7 +9,11 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import subprocess
+import tempfile
 from datetime import datetime, timezone
+from pathlib import Path
 from flask import Flask, request, Response, stream_with_context, render_template_string
 
 from review_agent import (
@@ -262,6 +266,78 @@ HTML = """<!DOCTYPE html>
     .char-counter.warn   { color: #f59e0b; }
     .char-counter.danger { color: #ef4444; }
 
+    /* Repo URL input */
+    .repo-section {
+      border: 1px solid #2d3148;
+      border-radius: 6px;
+      padding: 0.75rem;
+      background: #12152a;
+    }
+    .repo-section label {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: block;
+      margin-bottom: 0.4rem;
+    }
+    .repo-input-row {
+      display: flex;
+      gap: 0.4rem;
+    }
+    .repo-input-row input {
+      flex: 1;
+      background: #1a1d2e;
+      border: 1px solid #2d3148;
+      border-radius: 5px;
+      color: #e2e8f0;
+      font-size: 0.85rem;
+      padding: 0.45rem 0.65rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .repo-input-row input:focus { border-color: #4f6ef7; }
+    .repo-input-row input::placeholder { color: #475569; }
+    .fetch-btn {
+      background: #1e293b;
+      border: 1px solid #2d3148;
+      border-radius: 5px;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 0.82rem;
+      padding: 0.45rem 0.85rem;
+      white-space: nowrap;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+    }
+    .fetch-btn:hover:not(:disabled) { border-color: #4f6ef7; color: #e2e8f0; background: #253047; }
+    .fetch-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .repo-status {
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-top: 0.35rem;
+      min-height: 1.1em;
+    }
+    .repo-status.error { color: #f87171; }
+    .repo-status.success { color: #4ade80; }
+    .divider-or {
+      text-align: center;
+      font-size: 0.75rem;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      position: relative;
+    }
+    .divider-or::before, .divider-or::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 38%;
+      height: 1px;
+      background: #2d3148;
+    }
+    .divider-or::before { left: 0; }
+    .divider-or::after { right: 0; }
+
     /* Submit row */
     .submit-row { display: flex; gap: 0.5rem; }
     button#submit-btn {
@@ -434,8 +510,8 @@ HTML = """<!DOCTYPE html>
 
     <h3>How to use</h3>
     <ul>
-      <li>Each <strong>agent card</strong> represents one component. Add cards with <strong>+ Add agent</strong>.</li>
-      <li>For each card: enter a filename, then paste code or click <strong>Upload</strong> / drag a file onto the textarea.</li>
+      <li><strong>From a repo:</strong> paste a GitHub URL and click <strong>Fetch</strong> — all supported files are loaded automatically.</li>
+      <li><strong>From code:</strong> each <strong>agent card</strong> represents one component. Add cards with <strong>+ Add agent</strong>, then paste code or click <strong>Upload</strong> / drag a file.</li>
       <li>Click <strong>Review Agent</strong> (single) or <strong>Review System</strong> (multi) — or press <kbd>Ctrl+Enter</kbd>.</li>
       <li>If Claude uses extended thinking, the <strong>Extended thinking</strong> panel appears — click to inspect the reasoning.</li>
       <li>The <strong>audit bar</strong> shows timestamp, model, and SHA-256 hashes for reperformance verification.</li>
@@ -461,6 +537,17 @@ HTML = """<!DOCTYPE html>
 <main>
   <!-- LEFT: input -->
   <div class="panel-left">
+
+    <div class="repo-section">
+      <label>Repository URL</label>
+      <div class="repo-input-row">
+        <input type="text" id="repo-url" placeholder="https://github.com/owner/repo" onkeydown="if(event.key==='Enter')fetchRepo()" />
+        <button class="fetch-btn" id="fetch-btn" onclick="fetchRepo()">Fetch</button>
+      </div>
+      <div class="repo-status" id="repo-status"></div>
+    </div>
+
+    <div class="divider-or">or paste code</div>
 
     <div class="agents-header">
       <label>Agents</label>
@@ -852,6 +939,63 @@ HTML = """<!DOCTYPE html>
     }
   }
 
+  // ---- Fetch repo ----
+
+  async function fetchRepo() {
+    const urlInput   = document.getElementById("repo-url");
+    const fetchBtn   = document.getElementById("fetch-btn");
+    const repoStatus = document.getElementById("repo-status");
+    const url = urlInput.value.trim();
+
+    if (!url) { repoStatus.textContent = "Please enter a repository URL."; repoStatus.className = "repo-status error"; return; }
+
+    fetchBtn.disabled = true;
+    fetchBtn.textContent = "Cloning…";
+    repoStatus.textContent = "Cloning repository…";
+    repoStatus.className = "repo-status";
+
+    try {
+      const resp = await fetch("/fetch-repo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+
+      const data = await resp.json();
+      if (!resp.ok || data.error) {
+        repoStatus.textContent = data.error || "Failed to fetch repository.";
+        repoStatus.className = "repo-status error";
+        return;
+      }
+
+      // Clear existing cards and populate with repo files
+      const list = document.getElementById("agents-list");
+      list.innerHTML = "";
+      cardCounter = 0;
+
+      for (const file of data.files) {
+        const card = createCard(cardCounter++);
+        list.appendChild(card);
+        const filenameInput = card.querySelector("input[type=text]");
+        const textarea = card.querySelector("textarea");
+        filenameInput.value = file.path;
+        textarea.value = file.content;
+        updateCharCounter(textarea);
+      }
+
+      updateRemoveButtons();
+      updateSubmitLabel();
+      repoStatus.textContent = `Loaded ${data.files.length} file(s) from ${data.repo_name}`;
+      repoStatus.className = "repo-status success";
+    } catch (e) {
+      repoStatus.textContent = `Error: ${e.message}`;
+      repoStatus.className = "repo-status error";
+    } finally {
+      fetchBtn.disabled = false;
+      fetchBtn.textContent = "Fetch";
+    }
+  }
+
   // ---- Init: start with one empty card + load OWASP version ----
   addCard();
   loadOwaspVersion();
@@ -973,6 +1117,64 @@ def review():
         yield json.dumps({"type": "done", "risk": risk}) + "\n"
 
     return Response(stream_with_context(generate()), mimetype="text/plain")
+
+
+# ---------------------------------------------------------------------------
+# Repo fetch route
+# ---------------------------------------------------------------------------
+
+_MAX_FILE_SIZE = 100_000  # skip files larger than 100 KB
+_SKIP_DIRS = {".git", "__pycache__", "node_modules", ".venv", "venv", ".tox", "site-packages", ".mypy_cache"}
+
+
+@app.route("/fetch-repo", methods=["POST"])
+def fetch_repo():
+    data = request.get_json(silent=True) or {}
+    url = (data.get("url") or "").strip()
+
+    if not url:
+        return {"error": "No URL provided."}, 400
+
+    tmp_dir = tempfile.mkdtemp(prefix="owasp-review-")
+    try:
+        result = subprocess.run(
+            ["git", "clone", "--depth", "1", url, tmp_dir],
+            capture_output=True, text=True, timeout=120,
+        )
+        if result.returncode != 0:
+            err = result.stderr.strip() or "git clone failed"
+            return {"error": err}, 400
+
+        repo_name = url.rstrip("/").rsplit("/", 1)[-1].replace(".git", "")
+        repo_path = Path(tmp_dir)
+        files = []
+
+        for ext in SUPPORTED_EXTENSIONS:
+            for fpath in sorted(repo_path.rglob(f"*{ext}")):
+                if _SKIP_DIRS & set(fpath.relative_to(repo_path).parts):
+                    continue
+                if fpath.stat().st_size > _MAX_FILE_SIZE:
+                    continue
+                try:
+                    content = fpath.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+                rel = str(fpath.relative_to(repo_path)).replace("\\", "/")
+                files.append({"path": rel, "content": content})
+
+        if not files:
+            return {"error": f"No supported files found ({', '.join(SUPPORTED_EXTENSIONS)})."}, 400
+
+        return {"repo_name": repo_name, "files": files}
+
+    except subprocess.TimeoutExpired:
+        return {"error": "Clone timed out after 120 seconds."}, 400
+    except FileNotFoundError:
+        return {"error": "git is not installed on the server."}, 500
+    except Exception as e:
+        return {"error": str(e)}, 500
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------
