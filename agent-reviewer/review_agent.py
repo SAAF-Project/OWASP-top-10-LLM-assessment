@@ -323,18 +323,22 @@ def verify_citations(review_text: str, sources: dict) -> tuple:
     return problems, checked
 
 
-def _append_citation_check(result: dict, sources: dict) -> dict:
-    """Run verify_citations and print/append a note so unverifiable line numbers are visible."""
-    problems, checked = verify_citations(result["review"], sources)
+def citation_note(review_text: str, sources: dict) -> str:
+    """Markdown note summarising verify_citations(); shared by the CLI and the web portal."""
+    problems, checked = verify_citations(review_text, sources)
     if problems:
-        note = ("\n\n**Citation check:** the following cited locations did not match the "
+        return ("\n\n**Citation check:** the following cited locations did not match the "
                 "submitted source and must be verified by a human:\n"
                 + "\n".join(f"- {p}" for p in problems))
-    elif checked == 0:
-        note = ("\n\n**Citation check:** no file:line citations could be machine-verified; "
+    if checked == 0:
+        return ("\n\n**Citation check:** no file:line citations could be machine-verified; "
                 "a human must verify all cited locations.")
-    else:
-        note = f"\n\n**Citation check:** {checked} cited locations matched the submitted source."
+    return f"\n\n**Citation check:** {checked} cited locations matched the submitted source."
+
+
+def _append_citation_check(result: dict, sources: dict) -> dict:
+    """Print and append the citation note so unverifiable line numbers are visible."""
+    note = citation_note(result["review"], sources)
     print(note, flush=True)
     result["review"] += note
     return result
