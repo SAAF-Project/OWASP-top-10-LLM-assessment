@@ -9,6 +9,13 @@
 | **Maintainer(s)** | SAAF Project |
 | **Last reviewed** | 2026-09-15 |
 | **Status** | Draft |
+| **Branch described** | `main` (origin/HEAD) plus the changes in PR #3 |
+
+> **Branch notice:** `main`, `master` and `feature/audit-criteria` have diverged (`master` carries an older lineage; a local `agents/run-claude-integration` branch also exists). This document describes `main` + PR #3 only.
+>
+> **Agent type:** All tools make live Anthropic Claude API calls at runtime (`claude-opus-4-6`), so AI-specific frameworks apply.
+>
+> **Sources used to draft this document:** `README.md`, `CLAUDE.md`, `assessment-methodology.md`, `llm-owasp/` docs, and the existing Session 6 A2 draft.
 
 ## 1. What the agent does
 
@@ -24,6 +31,8 @@ Reviews AI agent source code and configuration files against the OWASP Top 10 fo
 | CO-4 — Agents operate under least privilege and require human authorisation for irreversible actions | OWASP LLM06 (2025) · EU AI Act · NIST AI RMF | Limits blast radius of agent misbehaviour |
 | CO-5 — LLM-generated outputs are validated before being rendered, executed, or passed to downstream systems | OWASP LLM05 (2025) | Prevents XSS, SQL injection, and code execution from model output |
 | CO-6 — Agents have resource controls to prevent unbounded API consumption and cost overruns | OWASP LLM10 (2025) | Protects against denial-of-wallet and runaway agentic loops |
+| CO-7 — The reviewer's own findings are grounded and traceable: no fabricated findings, every non-N/A verdict cites file + line | EU AI Act (Art. 13 transparency) · NIST AI RMF (Measure) | An auditing agent that invents or cannot evidence findings misleads the auditor |
+| CO-8 — The reviewer states its uncertainty and requires human review before results are relied upon | EU AI Act (Art. 14 human oversight) · IIA Standards | Prevents LLM output being treated as audit-ready |
 
 *Full framework catalogue: `docs/reference/domains-and-frameworks.md` in the SAAF-Project repo.*
 
@@ -59,6 +68,16 @@ Reviews AI agent source code and configuration files against the OWASP Top 10 fo
 - Given an agent with no iteration limits on loops, the tool returns FAIL for criterion 10.2.
 - The tool never returns N/A for LLM10 regardless of agent architecture.
 
+**CO-7 — Grounded, traceable findings**
+- Given a submitted file, every FAIL/WARN verdict includes a file path and line number that exist in the input.
+- Given an input containing no vulnerable pattern for a control, the tool does not return FAIL for it.
+- Limitation, stated honestly: line-number accuracy is produced by the model and is not programmatically verified against the source.
+
+**CO-8 — Uncertainty and human review**
+- Given an inference not directly evidenced in the code, the output labels it as an inference rather than a confirmed finding.
+- Given any completed review, the output does not claim to be audit-ready or certified.
+- Limitation, stated honestly: the human-review gate is a wording convention in the output, not an enforced workflow step.
+
 ## 4. Good output / never do
 
 | A correct output MUST contain | The agent must NEVER |
@@ -89,3 +108,12 @@ Reviews AI agent source code and configuration files against the OWASP Top 10 fo
 | CO-5 #1 — FAIL on eval/exec with model output | ☐ | Pending |
 | CO-6 #1 — FAIL on missing max_tokens | ☐ | Pending |
 | CO-6 #3 — Never N/A for LLM10 | ☐ | Pending |
+| CO-7 #1 — Cited file/line exists in input | ☐ | Pending |
+| CO-8 #2 — No audit-ready claim in output | ☐ | Pending |
+
+Overall status: **Draft** — no criterion has been verified by a real run yet.
+
+## 7. Observability
+
+- **Logged today:** the Flask portal appends each completed review to `audit_log.jsonl` (gitignored). CLI tools write reports to stdout and, in folder mode, to `<folder>/reports/`.
+- **Missing:** no structured run log or tracing for the CLIs or `llm-owasp`, no token/cost tracking, no record of model version or prompt hash per review, and `audit_log.jsonl` is local-only with no retention policy.
