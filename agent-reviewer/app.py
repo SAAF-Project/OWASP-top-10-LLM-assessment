@@ -20,6 +20,7 @@ from review_agent import (
     SYSTEM_PROMPT, SUPPORTED_EXTENSIONS, MODEL, PROMPT_HASH,
     OWASP_VERSION, OWASP_LAST_UPDATED, OWASP_EDITION,
     OWASP_UPDATE_URL, check_owasp_staleness, update_owasp_definitions,
+    number_lines, citation_note,
 )
 
 app = Flask(__name__)
@@ -1059,7 +1060,7 @@ def review():
             user_message = (
                 f"Please review the following agent code/config for OWASP LLM Top 10 compliance.\n"
                 f"Filename: {agents[0]['filename']}\n\n"
-                f"```\n{agents[0]['code']}\n```"
+                f"```\n{number_lines(agents[0]['code'])}\n```"
             )
         else:
             parts = [
@@ -1072,7 +1073,7 @@ def review():
             for i, agent in enumerate(agents, 1):
                 parts.append(
                     f"\n---\n\n### Component {i}: `{agent['filename']}`\n\n"
-                    f"```\n{agent['code']}\n```\n"
+                    f"```\n{number_lines(agent['code'])}\n```\n"
                 )
             user_message = "\n".join(parts)
 
@@ -1095,8 +1096,14 @@ def review():
                         full_text.append(delta.text)
                         yield json.dumps({"type": "text", "text": delta.text}) + "\n"
 
+        # Verify cited file:line + quoted code against the submitted sources and stream the note,
+        # so it is part of the displayed and downloaded review.
+        note = citation_note("".join(full_text), {a["filename"]: a["code"] for a in agents})
+        full_text.append(note)
+        yield json.dumps({"type": "text", "text": note}) + "\n"
+
         review_text = "".join(full_text)
-        risk_match  = re.search(r"[Oo]verall risk rating[:\s]+(Critical|High|Medium|Low)", review_text)
+        risk_match  = re.search(r"overall risk rating\W{0,4}(Critical|High|Medium|Low)", review_text, re.I)
         risk        = risk_match.group(1) if risk_match else "Unknown"
 
         log_entry = {

@@ -20,6 +20,21 @@ def test_collect_single_file(tmp_path):
     assert "print('hello')" in result
 
 
+def test_collect_numbers_lines(tmp_path):
+    f = _write(tmp_path, "agent.py", "import os\nKEY = 'x'\n")
+    result = collect(str(f))
+    assert "1| import os" in result
+    assert "2| KEY = 'x'" in result
+
+
+def test_collect_sources_returns_unnumbered_text(tmp_path):
+    from owasp_llm_audit.collector import collect_sources
+    f = _write(tmp_path, "agent.py", "import os\n")
+    sources = collect_sources(str(f))
+    assert list(sources) == ["agent.py"]
+    assert sources["agent.py"].splitlines() == ["import os"]  # no "1| " prefix
+
+
 def test_collect_directory(tmp_path):
     _write(tmp_path, "a.py", "# a")
     _write(tmp_path, "b.md", "# b")

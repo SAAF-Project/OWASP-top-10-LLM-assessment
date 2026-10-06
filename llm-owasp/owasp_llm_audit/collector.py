@@ -27,13 +27,12 @@ def _gather(path: Path, filter_glob: str | None) -> list[Path]:
     return files
 
 
-def collect(targets: str | list[str], filter_glob: str | None = None) -> str:
-    """Return normalised audit material from one or more paths.
+def number_lines(text: str) -> str:
+    """Prefix each line with its 1-based number (`N| `) so the model cites real lines."""
+    return "\n".join(f"{i}| {line}" for i, line in enumerate(text.splitlines(), 1))
 
-    targets: a single path string or a list of path strings (files or directories).
-    filter_glob: optional filename glob (e.g. 'frank-van-dissel-uc*.md') applied
-                 when walking directories — avoids the need to copy files to a temp folder.
-    """
+
+def _resolve(targets: str | list[str], filter_glob: str | None) -> list[Path]:
     if isinstance(targets, str):
         targets = [targets]
 
@@ -46,14 +45,36 @@ def collect(targets: str | list[str], filter_glob: str | None = None) -> str:
 
     if not files:
         raise ValueError(f"No supported files found in: {targets} (filter={filter_glob!r})")
+    return sorted(set(files))
 
+
+def _read(fp: Path) -> str:
+    return fp.read_bytes()[:FILE_LIMIT].decode("utf-8", errors="replace")
+
+
+def collect_sources(targets: str | list[str], filter_glob: str | None = None) -> dict[str, str]:
+    """Return {filename: text} exactly as sent to the model (before line numbering).
+
+    Used to verify the file:line citations in the assessments. Files that share a name
+    in different directories collide; the last one wins.
+    """
+    return {fp.name: _read(fp) for fp in _resolve(targets, filter_glob)}
+
+
+def collect(targets: str | list[str], filter_glob: str | None = None) -> str:
+    """Return normalised audit material from one or more paths.
+
+    targets: a single path string or a list of path strings (files or directories).
+    filter_glob: optional filename glob (e.g. 'frank-van-dissel-uc*.md') applied
+                 when walking directories — avoids the need to copy files to a temp folder.
+
+    Every file is emitted with each line prefixed by its line number (`N| `).
+    """
     parts: list[str] = []
     skipped: list[str] = []
     total = 0
-    for fp in sorted(set(files)):
-        raw = fp.read_bytes()[:FILE_LIMIT]
-        snippet = raw.decode("utf-8", errors="replace")
-        chunk = f"### {fp.name}\n```\n{snippet}\n```\n"
+    for fp in _resolve(targets, filter_glob):
+        chunk = f"### {fp.name}\n```\n{number_lines(_read(fp))}\n```\n"
         if total + len(chunk) > TOTAL_LIMIT:
             # Fix 6: skip oversized file and continue with remaining files
             skipped.append(fp.name)

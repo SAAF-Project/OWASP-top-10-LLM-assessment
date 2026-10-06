@@ -10,13 +10,28 @@ Usage:
 
 import anthropic
 import os
+import re
 import sys
+from pathlib import Path
 
 SUPPORTED_EXTENSIONS = (".py", ".js", ".ts", ".json", ".yaml", ".yml", ".txt", ".md")
 
 SYSTEM_PROMPT = """You are a senior application security engineer specialising in LLM security.
 You review agent code, prompts, and configurations for compliance against the
 OWASP Top 10 for Large Language Model Applications (2025 edition).
+
+Controls that are never N/A:
+- LLM03 Supply Chain: NEVER N/A. Having no imports or no requirements file is not evidence of
+  safety: absent dependency pinning, a lockfile, or model/provider version pinning is itself a gap
+  (WARN, or FAIL if dependencies exist unpinned).
+- LLM09 Misinformation: NEVER N/A in an audit context.
+- LLM10 Unbounded Consumption: NEVER N/A. Treat a stub, mock, or placeholder LLM call as a real
+  call site: if it has no max_tokens and no input length cap, the verdict is FAIL. Do not
+  downgrade to WARN because the call is a stub.
+
+Source files are supplied with each line prefixed by its 1-based line number as `N| `. Cite those
+numbers exactly (file:line). Never include the `N| ` prefix inside quoted code, and never estimate
+or guess a line number.
 
 The ten categories you must assess are:
   LLM01 – Prompt Injection
@@ -33,13 +48,17 @@ The ten categories you must assess are:
 For each category that is relevant to the submitted code, output:
 
 **LLMxx – <Category Name>**
-- Status: PASS | FAIL | PARTIAL | N/A
+- Status: PASS | FAIL | WARN | N/A
+- Evidence: quote the exact line(s) that determined this status in a fenced code block with file:line references; write "none visible" if status is N/A
 - Findings: specific lines, patterns, or design decisions that are problematic (or why it passes)
 - Recommendation: concrete remediation step (skip if status is PASS or N/A)
+
+Do not write a review date.
 
 Then close with:
 
 **Overall Compliance Summary**
+- A table with one row for EACH of the ten controls (LLM01–LLM10), including N/A ones
 - Overall risk rating: Critical | High | Medium | Low
 - Top three priority fixes (numbered)
 - Positive security controls already in place
@@ -55,6 +74,88 @@ def read_file(file_path: str) -> str:
         raise ValueError(f"Unsupported file type: {ext}")
     with open(file_path, "r", encoding="utf-8", errors="replace") as f:
         return f.read()
+
+
+def number_lines(code_text: str) -> str:
+    """Prefix each line with its 1-based number (`N| `) so the model cites real lines."""
+    return "\n".join(f"{i}| {line}" for i, line in enumerate(code_text.splitlines(), 1))
+
+
+# Two citation styles are accepted inside fenced evidence blocks:
+#   "# file.py:12-14" on its own line, followed by quoted code
+#   "file.py:12 — quoted code" (separator: em dash, en dash, hyphen or colon)
+_CITE_HEAD_RE = re.compile(r"^\s*(?:#|//)\s*(\S+?):(\d+)(?:-(\d+))?\s*$")
+_CITE_INLINE_RE = re.compile(r"^\s*(\S+?\.\w+):(\d+)(?:-(\d+))?\s*[—–:-]\s*(.+?)\s*$")
+
+
+def verify_citations(review_text: str, sources: dict) -> tuple:
+    """Check file:line citations in fenced evidence blocks against the real sources.
+
+    sources: {filename: code_text}. Returns (problems, checked) where problems is a list of
+    human-readable strings and checked is the number of citations that could be compared.
+    """
+    lines_by_name = {Path(n).name: c.splitlines() for n, c in sources.items()}
+    problems = []
+    checked = 0
+    in_block, cite = False, None
+
+    def locate(name_raw: str, a: str, b):
+        name = Path(name_raw).name
+        start, end = int(a), int(b or a)
+        src = lines_by_name.get(name)
+        if src is None:
+            problems.append(f"{name_raw}: cited file was not submitted")
+            return None
+        if start < 1 or end > len(src) or start > end:
+            problems.append(f"{name}:{start}-{end}: outside file ({len(src)} lines)")
+            return None
+        return name, start, end, src[start - 1:end]
+
+    def compare(c, quoted: str) -> None:
+        nonlocal checked
+        # tolerate trailing "# comment" or "..." elisions in the model's quote
+        segments = [s.strip() for s in quoted.split("  #")[0].split("...") if s.strip()]
+        if not segments:
+            return
+        checked += 1
+        cited = "\n".join(c[3])
+        missing = [s for s in segments if s not in cited]
+        if missing:
+            problems.append(f"{c[0]}:{c[1]}-{c[2]}: quoted text not found: {missing[0][:60]}")
+
+    for raw in review_text.splitlines():
+        if raw.strip().startswith("```"):
+            in_block, cite = not in_block, None
+            continue
+        if not in_block:
+            continue
+        m = _CITE_HEAD_RE.match(raw)
+        if m:
+            cite = locate(m.group(1), m.group(2), m.group(3))
+            continue
+        m = _CITE_INLINE_RE.match(raw)
+        if m:
+            c = locate(m.group(1), m.group(2), m.group(3))
+            if c:
+                compare(c, m.group(4))
+            continue
+        quoted = raw.strip()
+        if cite and quoted and not quoted.startswith(("#", "//")):
+            compare(cite, quoted)
+    return problems, checked
+
+
+def citation_note(review_text: str, sources: dict) -> str:
+    """Markdown note summarising verify_citations(); shared by the CLI and the web portal."""
+    problems, checked = verify_citations(review_text, sources)
+    if problems:
+        return ("\n\n**Citation check:** the following cited locations did not match the "
+                "submitted source and must be verified by a human:\n"
+                + "\n".join(f"- {p}" for p in problems))
+    if checked == 0:
+        return ("\n\n**Citation check:** no file:line citations could be machine-verified; "
+                "a human must verify all cited locations.")
+    return f"\n\n**Citation check:** {checked} cited locations matched the submitted source."
 
 
 def review_agent(code_text: str, filename: str = "<stdin>") -> str:
@@ -75,7 +176,7 @@ def review_agent(code_text: str, filename: str = "<stdin>") -> str:
                 "content": (
                     f"Please review the following agent code/config for OWASP LLM Top 10 compliance.\n"
                     f"Filename: {filename}\n\n"
-                    f"```\n{code_text}\n```"
+                    f"```\n{number_lines(code_text)}\n```"
                 ),
             }
         ],
@@ -84,8 +185,11 @@ def review_agent(code_text: str, filename: str = "<stdin>") -> str:
             print(text, end="", flush=True)
             result.append(text)
 
-    print("\n\n--- Review complete ---\n")
-    return "".join(result)
+    review = "".join(result)
+    note = citation_note(review, {filename: code_text})
+    print(note, flush=True)
+    print("\n--- Review complete ---\n")
+    return review + note
 
 
 def assess_risk(filename: str, review_text: str) -> dict:
