@@ -100,18 +100,18 @@ Reviews AI agent source code and configuration files against the OWASP Top 10 fo
 
 | Acceptance criterion | Verified? | Evidence |
 |---|---|---|
-| CO-1 #1 — Structural separation detected | ☐ | Pending A1 stress-test |
-| CO-1 #2 — FAIL on concatenated prompt | ☐ | Pending |
-| CO-2 #1 — FAIL on hardcoded API key | ☐ | Pending |
-| CO-3 #3 — Never N/A for LLM03 | ☐ | Pending |
-| CO-4 #1 — FAIL on no human checkpoint | ☐ | Pending |
-| CO-5 #1 — FAIL on eval/exec with model output | ☐ | Pending |
-| CO-6 #1 — FAIL on missing max_tokens | ☐ | Pending |
-| CO-6 #3 — Never N/A for LLM10 | ☐ | Pending |
-| CO-7 #1 — Cited file/line exists in input | ☐ | Pending |
-| CO-8 #2 — No audit-ready claim in output | ☐ | Pending |
+| CO-1 #1 — Structural separation detected | ☑ | 2026-10-06 run on `prototype/test_agent.py`: reported no `system`/`user` role separation. Positive case only; the "separated" case was not tested |
+| CO-1 #2 — FAIL on concatenated prompt | ☑ | Same run: LLM01 = FAIL for the f-string prompt (real lines 12–13) |
+| CO-2 #1 — FAIL on hardcoded API key | ☑ | Same run: LLM02 = FAIL, flagged `API_KEY` (real line 8). Note the value is a placeholder string, not a real key |
+| CO-3 #3 — Never N/A for LLM03 | ✕ Failed | Same run returned LLM03 = N/A ("no imports"), without checking for pinned dependencies or a lockfile. Open defect |
+| CO-4 #1 — FAIL on no human checkpoint | ☐ | Not exercised: `test_agent.py` performs no irreversible actions (LLM06 = PASS). Needs a different test agent |
+| CO-5 #1 — FAIL on eval/exec with model output | ☐ | Not exercised: `test_agent.py` has no `eval`/`exec`/`subprocess`. LLM05 = FAIL was given for a plain `print`, which is stricter than the criterion |
+| CO-6 #1 — FAIL on missing max_tokens | ✕ Failed | Same run returned LLM10 = WARN, not FAIL (the LLM call is a stub, so the tool softened it). Open defect or criterion needs refining for stubs |
+| CO-6 #3 — Never N/A for LLM10 | ☑ | Same run: LLM10 = WARN (not N/A). Single run only |
+| CO-7 #1 — Cited file/line exists in input | ✕ Failed | Same run: cited lines 9, 14–15, 21 and 26 were wrong (real: 8, 12–13, 19, 25); only line 28 matched. The review date was also fabricated (`2025-01-XX`), and the summary table omitted LLM08. Open defect |
+| CO-8 #2 — No audit-ready claim in output | ☑ | Same run: no audit-ready or certified claim. Single run only; the review stops short of a human-review notice, which is a gap |
 
-Overall status: **Draft** — no criterion has been verified by a real run yet.
+Overall status: **Draft** — first validation run 2026-10-06 against `prototype/test_agent.py` (`agent-reviewer/review_agent.py`, `claude-opus-4-6`): 5 criteria verified, 3 failed (CO-3 #3, CO-6 #1, CO-7 #1), 2 not exercised. All results come from a single run on one small sample, so they are indicative only.
 
 ## 7. Observability
 
