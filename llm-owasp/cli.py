@@ -22,7 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 import anthropic
-from owasp_llm_audit.collector import collect
+from owasp_llm_audit.collector import collect, collect_sources
 from owasp_llm_audit.controls import load_controls, CONTROL_IDS
 from owasp_llm_audit.auditor import Assessment, assess, assess_all
 from owasp_llm_audit.report import format_report
@@ -89,6 +89,7 @@ def main() -> None:
 
     print(f"[1/4] Collecting audit material from: {label}")
     material = collect(args.target, filter_glob=args.filter)
+    sources = collect_sources(args.target, filter_glob=args.filter)
     print(f"      {len(material):,} bytes collected")
 
     print("[2/4] Loading OWASP LLM control definitions")
@@ -103,12 +104,13 @@ def main() -> None:
         client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
         if args.control:
             # Single control — no need for thread pool
-            a = assess(material, controls[0], client)
+            a = assess(material, controls[0], client, sources=sources)
             _on_result(a)
             assessments = [a]
         else:
             # Fix 5: max_workers=2 to avoid hammering rate limits with large material
-            assessments = assess_all(material, controls, client, on_result=_on_result, max_workers=2)
+            assessments = assess_all(material, controls, client, on_result=_on_result, max_workers=2,
+                                  sources=sources)
 
     print("[4/4] Generating report")
     # Fix 4: sensible default output path

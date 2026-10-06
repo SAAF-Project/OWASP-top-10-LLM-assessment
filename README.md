@@ -104,6 +104,14 @@ All 10 OWASP LLM controls (2025 edition):
 
 All tools use the Anthropic Claude API (`claude-opus-4-6` for agent-reviewer, configurable for llm-owasp).
 
+## Observability
+
+- The web portal (`agent-reviewer/app.py`) appends every completed review to `audit_log.jsonl` (gitignored).
+- The CLI tools print results to stdout/report files only; they keep no run log, token/cost tracking, or tracing.
+- `llm-owasp` emits machine-readable findings but no structured runtime logs.
+
+See section 7 of [AUDIT-CRITERIA.md](AUDIT-CRITERIA.md) for details and gaps.
+
 ## Related repos
 
 - [SAAF-Project/threewaysecurity](https://github.com/SAAF-Project/threewaysecurity) — parent repo with audit document reviewer and compliance agent

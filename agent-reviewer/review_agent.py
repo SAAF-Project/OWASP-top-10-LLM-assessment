@@ -16,10 +16,12 @@ import anthropic
 import hashlib
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
+from pathlib import Path
 
 SUPPORTED_EXTENSIONS = (".py", ".js", ".ts", ".json", ".yaml", ".yml", ".txt", ".md")
 MODEL = "claude-opus-4-6"
@@ -68,18 +70,32 @@ def _build_system_prompt(defs: dict) -> str:
         "",
         "- PASS: All required mitigations are present in the code, configuration, or architecture.",
         "  No indicators of the risk were detected.",
-        "- PARTIAL: Some mitigations are present but gaps remain. The risk is reduced but not",
+        "- WARN: Some mitigations are present but gaps remain. The risk is reduced but not",
         "  eliminated. Specific remediation actions can close the gap.",
         "- FAIL: One or more indicators of the risk are present with no corresponding mitigation.",
         "  The agent is exposed to the described attack or failure mode.",
         "- N/A: The agent's architecture makes the risk category irrelevant (e.g., no RAG for",
         "  LLM08, no fine-tuning for LLM04). Requires positive evidence the capability is absent.",
-        "  If uncertain, default to PARTIAL.",
+        "  If uncertain, default to WARN.",
         "",
         "Verdict escalation: a single FAIL finding on any criterion within a control makes the",
-        "overall control verdict FAIL. Mixed PASS and PARTIAL findings yield PARTIAL.",
+        "overall control verdict FAIL. Mixed PASS and WARN findings yield WARN.",
+        "",
+        "## Controls that are never N/A",
+        "",
+        "- LLM03 Supply Chain: NEVER N/A. Every agent has a supply chain. Having no imports or no",
+        "  requirements file is not evidence of safety: absent dependency pinning, a lockfile, or",
+        "  model/provider version pinning is itself a gap (WARN, or FAIL if dependencies exist unpinned).",
+        "- LLM09 Misinformation: NEVER N/A in an audit context.",
+        "- LLM10 Unbounded Consumption: NEVER N/A. Treat a stub, mock, or placeholder LLM call as a",
+        "  real call site: if it has no max_tokens and no input length cap, the verdict is FAIL for",
+        "  token limits (criterion 10.1). Do not downgrade to WARN because the call is a stub.",
         "",
         "## Evidence standard",
+        "",
+        "Source files are supplied with each line prefixed by its 1-based line number as `N| `.",
+        "Cite those numbers exactly. Never include the `N| ` prefix inside quoted code, and never",
+        "estimate or guess a line number.",
         "",
         "Every finding MUST cite:",
         "1. Location — file path and line number (e.g., agent.py:42)",
@@ -94,19 +110,22 @@ def _build_system_prompt(defs: dict) -> str:
         "For each category that is relevant to the submitted code, output:",
         "",
         "**LLMxx – <Category Name>**",
-        "- Status: PASS | FAIL | PARTIAL | N/A",
+        "- Status: PASS | FAIL | WARN | N/A",
         '- Evidence: quote the exact line(s) of code or config value(s) that determined this status in a fenced code block with file:line references; write "none visible" if status is N/A',
         "- Findings: explain what the evidence shows and why it is a risk (or why it is safe)",
         "- Recommendation: concrete remediation step (skip if status is PASS or N/A)",
         "",
+        "Do not write a review date; the audit record header supplies it.",
+        "",
         "Then close with:",
         "",
         "**Overall Compliance Summary**",
+        "- A table with one row for EACH of the ten controls (LLM01–LLM10), including N/A ones",
         "- Overall risk rating, using these aggregation rules:",
         "  - Critical: 3+ FAIL verdicts, or FAIL on both LLM01 and LLM06",
         "  - High: 2+ FAIL verdicts, or FAIL on LLM01, LLM02, or LLM05",
-        "  - Medium: 1 FAIL verdict, or 4+ PARTIAL verdicts",
-        "  - Low: No FAIL verdicts and fewer than 4 PARTIAL verdicts",
+        "  - Medium: 1 FAIL verdict, or 4+ WARN verdicts",
+        "  - Low: No FAIL verdicts and fewer than 4 WARN verdicts",
         "- Top three priority fixes (numbered)",
         "- Positive security controls already in place",
         "",
@@ -235,6 +254,96 @@ def read_file(file_path: str) -> str:
 # Review engine
 # ---------------------------------------------------------------------------
 
+def number_lines(code_text: str) -> str:
+    """Prefix each line with its 1-based number (`N| `) so the model cites real lines."""
+    return "\n".join(f"{i}| {line}" for i, line in enumerate(code_text.splitlines(), 1))
+
+
+# Two citation styles are accepted inside fenced evidence blocks:
+#   "# file.py:12-14" on its own line, followed by quoted code
+#   "file.py:12 — quoted code" (separator: em dash, en dash, hyphen or colon)
+_CITE_HEAD_RE = re.compile(r"^\s*(?:#|//)\s*(\S+?):(\d+)(?:-(\d+))?\s*$")
+_CITE_INLINE_RE = re.compile(r"^\s*(\S+?\.\w+):(\d+)(?:-(\d+))?\s*[—–:-]\s*(.+?)\s*$")
+
+
+def verify_citations(review_text: str, sources: dict) -> tuple:
+    """Check file:line citations in fenced evidence blocks against the real sources.
+
+    sources: {filename: code_text}. Returns (problems, checked) where problems is a list of
+    human-readable strings and checked is the number of citations that could be compared.
+    """
+    lines_by_name = {Path(n).name: c.splitlines() for n, c in sources.items()}
+    problems = []
+    checked = 0
+    in_block, cite = False, None
+
+    def locate(name_raw: str, a: str, b):
+        name = Path(name_raw).name
+        start, end = int(a), int(b or a)
+        src = lines_by_name.get(name)
+        if src is None:
+            problems.append(f"{name_raw}: cited file was not submitted")
+            return None
+        if start < 1 or end > len(src) or start > end:
+            problems.append(f"{name}:{start}-{end}: outside file ({len(src)} lines)")
+            return None
+        return name, start, end, src[start - 1:end]
+
+    def compare(c, quoted: str) -> None:
+        nonlocal checked
+        # tolerate trailing "# comment" or "..." elisions in the model's quote
+        segments = [s.strip() for s in quoted.split("  #")[0].split("...") if s.strip()]
+        if not segments:
+            return
+        checked += 1
+        cited = "\n".join(c[3])
+        missing = [s for s in segments if s not in cited]
+        if missing:
+            problems.append(f"{c[0]}:{c[1]}-{c[2]}: quoted text not found: {missing[0][:60]}")
+
+    for raw in review_text.splitlines():
+        if raw.strip().startswith("```"):
+            in_block, cite = not in_block, None
+            continue
+        if not in_block:
+            continue
+        m = _CITE_HEAD_RE.match(raw)
+        if m:
+            cite = locate(m.group(1), m.group(2), m.group(3))
+            continue
+        m = _CITE_INLINE_RE.match(raw)
+        if m:
+            c = locate(m.group(1), m.group(2), m.group(3))
+            if c:
+                compare(c, m.group(4))
+            continue
+        quoted = raw.strip()
+        if cite and quoted and not quoted.startswith(("#", "//")):
+            compare(cite, quoted)
+    return problems, checked
+
+
+def citation_note(review_text: str, sources: dict) -> str:
+    """Markdown note summarising verify_citations(); shared by the CLI and the web portal."""
+    problems, checked = verify_citations(review_text, sources)
+    if problems:
+        return ("\n\n**Citation check:** the following cited locations did not match the "
+                "submitted source and must be verified by a human:\n"
+                + "\n".join(f"- {p}" for p in problems))
+    if checked == 0:
+        return ("\n\n**Citation check:** no file:line citations could be machine-verified; "
+                "a human must verify all cited locations.")
+    return f"\n\n**Citation check:** {checked} cited locations matched the submitted source."
+
+
+def _append_citation_check(result: dict, sources: dict) -> dict:
+    """Print and append the citation note so unverifiable line numbers are visible."""
+    note = citation_note(result["review"], sources)
+    print(note, flush=True)
+    result["review"] += note
+    return result
+
+
 def _stream_review(user_message: str, show_thinking: bool = False) -> dict:
     """Stream a review request. Returns {"review": str, "thinking": str}."""
     client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
@@ -283,10 +392,11 @@ def review_agent(code_text: str, filename: str = "<stdin>", show_thinking: bool 
     user_message = (
         f"Please review the following agent code/config for OWASP LLM Top 10 compliance.\n"
         f"Filename: {filename}\n\n"
-        f"```\n{code_text}\n```"
+        f"```\n{number_lines(code_text)}\n```"
     )
     result = _stream_review(user_message, show_thinking)
-    print("\n\n--- Review complete ---\n")
+    result = _append_citation_check(result, {filename: code_text})
+    print("\n--- Review complete ---\n")
     return result
 
 
@@ -307,11 +417,12 @@ def review_multi_agent(agents: list, show_thinking: bool = False) -> dict:
     for i, agent in enumerate(agents, 1):
         parts.append(
             f"\n---\n\n### Component {i}: `{agent['filename']}`\n\n"
-            f"```\n{agent['code']}\n```\n"
+            f"```\n{number_lines(agent['code'])}\n```\n"
         )
 
     result = _stream_review("\n".join(parts), show_thinking)
-    print("\n\n--- Review complete ---\n")
+    result = _append_citation_check(result, {a["filename"]: a["code"] for a in agents})
+    print("\n--- Review complete ---\n")
     return result
 
 
