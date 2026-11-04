@@ -112,6 +112,34 @@ All tools use the Anthropic Claude API (`claude-opus-4-6` for agent-reviewer, co
 
 See section 7 of [AUDIT-CRITERIA.md](AUDIT-CRITERIA.md) for details and gaps.
 
+## Prerequisites
+
+- Python: `llm-owasp` requires Python 3.11 or later (`llm-owasp/pyproject.toml`). TODO(owner): state the supported version for `agent-reviewer/`.
+- An Anthropic API key, read from the `ANTHROPIC_API_KEY` environment variable. Never put a key in code, prompts, config files or this repository; `.env` is git-ignored.
+
+## Model and data residency
+
+- Where data goes: the source and config files you submit for review are sent to the Anthropic API, a hosted service, along with the system prompt. The model is named in the Model section above.
+- TODO(owner): state the region where the provider processes and retains the data, and whether a local or EU-hosted option is supported. Open PR #7 makes the provider configurable.
+
+## Limitations and human review
+
+The output is a draft for a human auditor. Review it before relying on it; it is not an audit opinion or a certification. Known limits, detailed in [AUDIT-CRITERIA.md](AUDIT-CRITERIA.md) sections 3 and 5:
+
+- Static analysis only. Runtime behaviour, cross-file imports and infrastructure (for example vector-store access controls) are not assessed.
+- Verdicts and cited line numbers are model output. They are not fully deterministic between runs.
+- The human-review gate is a wording convention in the output, not an enforced workflow step.
+
+## Guardrails
+
+The tools follow the SAAF command allowlist (`regulatory/guardrails/allowed-commands.md` in the main SAAF-Project repo): no `rm`, `sudo`, `curl`, `wget`, `ssh`, `scp`, `chmod`, `chown` or `cron`, and no `pip install` at runtime. One exception to note: the Flask portals (`app.py`, `agent-reviewer/app.py`) run `git clone --depth 1 <url>` through `subprocess` on a URL supplied by the user. TODO(owner): confirm that this is acceptable under the allowlist, or restrict the allowed URL schemes and hosts.
+
+## License and contact
+
+- License: TODO(owner): licence to be decided by Stichting SAAF.
+- Maintainer: TODO(owner): name the maintainer(s). `AUDIT-CRITERIA.md` currently says "SAAF Project".
+- Plans: [`plans/hackathon-2/ellert-van-der-vecht-llm-owasp.md`](plans/hackathon-2/ellert-van-der-vecht-llm-owasp.md) and [`llm-owasp/plan.md`](llm-owasp/plan.md).
+
 ## Related repos
 
 - [SAAF-Project/threewaysecurity](https://github.com/SAAF-Project/threewaysecurity) — parent repo with audit document reviewer and compliance agent
